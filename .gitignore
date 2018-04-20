@@ -1,1 +1,6 @@
-data
+proj.user
+.Rhistory
+.RData
+.Ruserdata
+data/
+
