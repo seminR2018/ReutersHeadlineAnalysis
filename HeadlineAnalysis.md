@@ -1,21 +1,14 @@
----
-title: "Text analysis of news headlines"
-output:
-  github_document:
-    toc: true
-    dev: svg
-editor_options: 
-  chunk_output_type: console
----
+Text analysis of news headlines
+================
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-library(tidyverse)
-library(tidytext)
-library(lubridate)
-```
+-   [Feature engineering](#feature-engineering)
+-   [Exploratory analysis](#exploratory-analysis)
+    -   [Word count](#word-count)
+    -   [Character count](#character-count)
+    -   [Word length](#word-length)
+    -   [Time distribution](#time-distribution)
 
-```{r loadData}
+``` r
 reutersData <- 
   dir("data", full.names = T) %>% 
   # col_types = "cc" will read both columns as character
@@ -25,30 +18,17 @@ reutersData <-
   mutate(publish_time = ymd_hm(publish_time))
 ```
 
+Feature engineering
+-------------------
 
-```{r, eval=F, echo=F}
-# Work on a small subset of the data for testing.
-# Remove this chunk to run on the entire dataset.
+-   Word Count - Total number of words in the headline
+-   Character Count - Total number of characters in the headline excluding spaces
+-   Mean Word Length - Average length of the words used in the headline
+-   Word Density - Words per character
+-   Punctuation Count - Total number of punctuations used in the headline
+-   Upper-Case to Lower-Case Words ratio - ratio of upper case words used and lower case words used in the text
 
-reutersDataFull <- reutersData
-
-reutersData <- 
-  reutersDataFull %>% 
-  sample_n(10000)
-```
-
-
-## Feature engineering
-
-
-* Word Count - Total number of words in the headline
-* Character Count - Total number of characters in the headline excluding spaces
-* Mean Word Length - Average length of the words used in the headline
-* Word Density - Words per character
-* Punctuation Count - Total number of punctuations used in the headline
-* Upper-Case to Lower-Case Words ratio - ratio of upper case words used and lower case words used in the text
-
-```{r countStats, cache=T}
+``` r
 reutersData <-
   reutersData %>% 
   mutate( word_count = map_int(strsplit(headline_text, split= " "), length) ) %>%
@@ -59,11 +39,12 @@ reutersData <-
   mutate( punctuation_count = nchar(gsub("[^[:punct:]]","",headline_text)) )
 ```
 
-## Exploratory analysis
+Exploratory analysis
+--------------------
 
 ### Word count
 
-```{r wordCountPlot}
+``` r
 reutersData %>% 
   mutate( year = year(publish_time) ) %>% 
   ggplot( aes(x=word_count) ) +
@@ -71,29 +52,39 @@ reutersData %>%
   facet_wrap( ~ year)
 ```
 
+![](HeadlineAnalysis_files/figure-markdown_github/wordCountPlot-1.svg)
+
 ### Character count
 
-```{r characterCountPlot}
+``` r
 reutersData %>% 
   mutate( year = factor(year(publish_time)) ) %>% 
   ggplot( aes(y=character_count, x = year) )+
   geom_violin( )
 ```
 
+    ## Warning: Removed 53 rows containing non-finite values (stat_ydensity).
+
+![](HeadlineAnalysis_files/figure-markdown_github/characterCountPlot-1.svg)
+
 ### Word length
 
-```{r wordLengthPlot}
+``` r
 reutersData %>% 
   mutate( year = factor(year(publish_time)) ) %>% 
   ggplot( aes(y=mean_word_length, x = year) ) +
   geom_violin( )
 ```
 
+    ## Warning: Removed 53 rows containing non-finite values (stat_ydensity).
+
+![](HeadlineAnalysis_files/figure-markdown_github/wordLengthPlot-1.svg)
+
 ### Time distribution
 
 #### Number of headlines per day over the years
 
-```{r perDayTrendPlot}
+``` r
 reutersData %>% 
   mutate( publish_day = floor_date(publish_time, unit = "day") ) %>% 
   group_by( publish_day ) %>% 
@@ -102,9 +93,13 @@ reutersData %>%
   geom_smooth( )
 ```
 
+    ## `geom_smooth()` using method = 'gam'
+
+![](HeadlineAnalysis_files/figure-markdown_github/perDayTrendPlot-1.svg)
+
 #### Month of the year
 
-```{r monthPlot}
+``` r
 reutersData %>% 
   mutate( month_num = month(publish_time) ) %>%
   # convert month number to three letter abbrivation using built-in constant month.abb
@@ -113,28 +108,35 @@ reutersData %>%
   geom_bar()
 ```
 
+![](HeadlineAnalysis_files/figure-markdown_github/monthPlot-1.svg)
+
 #### Week of the year
 
-```{r weekPlot}
+``` r
 reutersData %>% 
   ggplot( aes( x = as.integer(week(publish_time))) ) +
   geom_bar() +
   scale_x_continuous( breaks=c(1,(1:5)*10,53) )
 ```
 
+![](HeadlineAnalysis_files/figure-markdown_github/weekPlot-1.svg)
+
 #### Hour of the day
 
-```{r hourPlot}
+``` r
 reutersData %>% 
   ggplot( aes( x = hour(publish_time)) ) +
   geom_histogram( bins = 24)
 ```
 
+![](HeadlineAnalysis_files/figure-markdown_github/hourPlot-1.svg)
+
 #### Minute of the hour
 
-```{r minutePlot}
+``` r
 reutersData %>% 
   ggplot( aes( x = minute(publish_time)) ) +
   geom_histogram( bins = 60)
 ```
 
+![](HeadlineAnalysis_files/figure-markdown_github/minutePlot-1.svg)
