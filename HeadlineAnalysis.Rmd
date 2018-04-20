@@ -9,12 +9,15 @@ editor_options:
 knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(tidytext)
+library(lubridate)
 ```
 
 ```{r loadData}
 reutersData <- 
   dir("data", full.names = T) %>% 
-  map_df( read_csv,col_types = cols())
+  # col_types = "cc" will read both columns as character
+  # (by default the "publish_time" column would be read as integer.)
+  map_df( read_csv,col_types = "cc") %>%
+  # ymd_hm() will read date+time in the format [year][month][day][hour][minute]
+  mutate(publish_time = ymd_hm(publish_time))
 ```
-
-
