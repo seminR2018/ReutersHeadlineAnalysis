@@ -17,4 +17,6 @@ reutersData <-
   map_df( read_csv,col_types = cols())
 ```
 
+```{r word count}
 
+```
