@@ -3,4 +3,4 @@ proj.user
 .RData
 .Ruserdata
 data/
-Analysis_*
+Analysis_cache/
