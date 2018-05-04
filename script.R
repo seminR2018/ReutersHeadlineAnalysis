@@ -43,4 +43,5 @@ with_counts %>%
   facet_wrap(~type, scales = 'free_y') +
   stat_summary(fun.data = mean_se, geom = "errorbar", color = "red", width = 0.3) +
   stat_summary(fun.y = mean, geom = "point") +
-  stat_summary(fun.y = mean, geom = "line", group = 1)
+  stat_summary(fun.y = mean, geom = "line", group = 1) +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1))

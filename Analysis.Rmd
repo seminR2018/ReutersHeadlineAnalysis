@@ -1,0 +1,208 @@
+---
+title: "News - Text Analysis (Topic - Natural Disasters)"
+author: "Raju Rimal"
+date: "20/04/2018"
+output: 
+  github_document:
+    toc: true
+    dev: svg
+  html_document:
+    theme: cosmo
+    toc: false
+    toc_float: true
+    code_folding: show
+editor_options: 
+  chunk_output_type: inline
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE, 
+  warning = FALSE, 
+  message = FALSE,
+  comment = NULL, 
+  cache = TRUE
+  )
+```
+
+This kernal provides a walkthrough of text analysis of Reuter's Headlines published in 2017. It includes exploration, feature engineering, and visualization of headlines data as well as a detailed text-analysis of disaster related headlines of 2017.
+
+# Dataset Preparation
+
+Load the required libraries and data. In this notebook, I am only using the data of 2017 but the same can be extended to other years.
+
+**Load Packages:**
+
+```{r}
+library(tidyverse)
+library(tidytext)
+library(lubridate)
+```
+
+__Some custom functions:__
+```{r}
+k_scale <- function(x) paste0(round(x/1000), "K")
+```
+
+
+**Lets look at the dataset:**
+
+```{r, eval=!file.exists("data/newswire_counts.feather"), cache = TRUE}
+if (file.exists("data/newswire.feather")) {
+  dta <- feather::read_feather("data/newswire.feather")
+} else {
+  if (file.exists("data/newswire.feather")) {
+    dta <- feather::read_feather("data/newswire.feather")
+  } else {
+    files <- dir("data", pattern = "csv")
+    dta <- map_df(files, function(file) {
+      read_csv(paste0("data/", file))
+    })
+    
+    dta <- dta %>%
+      separate(publish_time,
+               into = c("Year", "Month", "Day", "Hour", "Minutes"),
+               sep = c(4, 6, 8, 10))
+    feather::write_feather(dta, "_data/newswire.feather")
+  }
+}
+```
+
+# Feature Engineering
+
+The available data contains only two columns - headline_text and publish date. In this section we will create some some additional features using these features. Following list explains different ideas for creating new features.
+
+## Statistical Count Features from headline text
+
+1) __Word Count__ - Total number of words in the headline
+1) __Character Count__ - Total number of characters in the headline excluding spaces
+1) __Word Density__ - Average length of the words used in the headline
+1) __Punctuation Count__ - Total number of punctuations used in the headline
+1) __Upper-Case to Lower-Case Words ratio__ - ratio of upper case words used and lower case words used in the text
+
+## Headline Text Features
+
+1) __Sentiment__: Polarity - sentiment value of the headline computed using textblob package
+1) __Part of Speech__: Nouns to Verbs Ratio - ratio of nouns and verbs used in the text
+
+## Features from headline's publish time
+
+1) __Month__ - name of the month in which headline was publised
+1) __Date__ - month date in which headline was published
+1) __Hour__ - hour value in which headline was published
+1) __Minute__ - minute value in whcih headline was published
+1) __Weekday__ - Weekday name when the headline was published
+
+# Generate Statistical Count Features
+
+```{r, cache=TRUE, eval = file.exists('data/newswire_counts.feather')}
+newswire <- feather::read_feather("data/newswire_counts.feather")
+```
+
+```{r, cache=TRUE, eval = !file.exists('data/newswire_counts.feather')}
+newswire <- dta %>%
+  mutate(
+    word              = map_int(strsplit(headline_text, split = " "), length),
+    character         = nchar(gsub(" ", "", headline_text)),
+    avg_word_length   = character / word,
+    word_density      = word / (character + 1),
+    punctuation       = nchar(gsub("[^[:punct:]]", "", headline_text)),
+    upper             = nchar(gsub("[^[:upper:]+]", "", headline_text)),
+    lower             = nchar(gsub("[^[:lower:]+]", "", headline_text)),
+    ul_ratio          = upper / lower
+  )
+feather::write_feather(with_counts, "data/newswire_counts.feather")
+```
+
+# Exploratory Analysis
+
+In this section, we will explore the dataset and the features
+
+- Headline's Word Count Distribution over the year
+- Headline's Character Count Distribution over the year
+- Headline's Average Word Density Distribution over the year
+- Headline's Punctuation Count distribution over the year
+- Publish Date Parameters distribution - Month, Month-Date
+- Publish Date Parameters distribution - Week-Day, Hour
+- WeekDay vs WeekEnd distributions 3.8. Sentiment over Time
+- Top Positive vs Top Negative Words Used in the headlines
+- Countries Visualization
+
+## Word count distribution
+
+```{r}
+dta <- newswire
+dta %>% 
+  ggplot(aes(word)) +
+  geom_histogram() +
+  facet_wrap(~ Year, ncol = 4)
+```
+
+## Character Count Distribution
+
+```{r}
+dta %>% 
+  ggplot(aes(character)) +
+  geom_histogram() +
+  facet_wrap(~ Year, ncol = 4)
+```
+
+## Word Density distribution
+```{r}
+dta %>% 
+  ggplot(aes(word_density)) +
+  geom_histogram() +
+  facet_wrap(~ Year, ncol = 4)
+```
+
+## Punctuation count distribution
+
+```{r}
+dta %>% 
+  ggplot(aes(punctuation)) +
+  geom_histogram(bins = 18) +
+  facet_wrap(~ Year, ncol = 4)
+```
+
+## Distribution of headlines in different months and month-date
+
+```{r, fig.asp=1}
+p1 <- dta %>% 
+  group_by(Year, Month) %>% 
+  summarize(Month_Count = n()) %>% 
+  mutate(Month = as.integer(Month)) %>% 
+  ggplot(aes(Month, Month_Count)) +
+  geom_bar(stat = "identity") +
+  scale_x_continuous(breaks = 1:12) +
+  facet_grid(Year ~ .)
+p2 <- dta %>% 
+  group_by(Year, Day) %>% 
+  summarize(Day_Count = n()) %>% 
+  mutate(Day = as.integer(Day)) %>% 
+  ggplot(aes(Day, Day_Count)) +
+  geom_bar(stat = "identity") +
+  facet_grid(Year ~ .)
+gridExtra::grid.arrange(p1, p2, ncol = 2)
+```
+
+## Distribution of headlines during Hours and Minutes
+
+```{r, fig.asp=1}
+p1 <- dta %>% 
+  group_by(Year, Hour) %>% 
+  summarize(Hour_Count = n()) %>% 
+  mutate(Hour = as.integer(Hour)) %>% 
+  ggplot(aes(Hour, Hour_Count)) +
+  geom_bar(stat = "identity") +
+  scale_x_continuous(breaks = seq(0, 24, 2)) +
+  facet_grid(Year ~ .)
+p2 <- dta %>% 
+  group_by(Year, Minutes) %>% 
+  summarize(Minutes_Count = n()) %>% 
+  mutate(Minutes = as.integer(Minutes)) %>% 
+  ggplot(aes(Minutes, Minutes_Count)) +
+  geom_bar(stat = "identity") +
+  facet_grid(Year ~ .)
+gridExtra::grid.arrange(p1, p2, ncol = 2)
+```
+
