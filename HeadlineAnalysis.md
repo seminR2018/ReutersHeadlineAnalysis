@@ -1,13 +1,6 @@
 Text analysis of news headlines
 ================
 
--   [Feature engineering](#feature-engineering)
--   [Exploratory analysis](#exploratory-analysis)
-    -   [Word count](#word-count)
-    -   [Character count](#character-count)
-    -   [Word length](#word-length)
-    -   [Time distribution](#time-distribution)
-
 ``` r
 reutersData <- 
   dir("data", full.names = T) %>% 
@@ -18,15 +11,19 @@ reutersData <-
   mutate(publish_time = ymd_hm(publish_time))
 ```
 
-Feature engineering
--------------------
+## Feature engineering
 
--   Word Count - Total number of words in the headline
--   Character Count - Total number of characters in the headline excluding spaces
--   Mean Word Length - Average length of the words used in the headline
--   Word Density - Words per character
--   Punctuation Count - Total number of punctuations used in the headline
--   Upper-Case to Lower-Case Words ratio - ratio of upper case words used and lower case words used in the text
+  - Word Count - Total number of words in the headline
+  - Character Count - Total number of characters in the headline
+    excluding spaces
+  - Mean Word Length - Average length of the words used in the headline
+  - Word Density - Words per character
+  - Punctuation Count - Total number of punctuations used in the
+    headline
+  - Upper-Case to Lower-Case Words ratio - ratio of upper case words
+    used and lower case words used in the text
+
+<!-- end list -->
 
 ``` r
 reutersData <-
@@ -39,8 +36,7 @@ reutersData <-
   mutate( punctuation_count = nchar(gsub("[^[:punct:]]","",headline_text)) )
 ```
 
-Exploratory analysis
---------------------
+## Exploratory analysis
 
 ### Word count
 
@@ -52,7 +48,7 @@ reutersData %>%
   facet_wrap( ~ year)
 ```
 
-![](HeadlineAnalysis_files/figure-markdown_github/wordCountPlot-1.svg)
+![](HeadlineAnalysis_files/figure-gfm/wordCountPlot-1.svg)<!-- -->
 
 ### Character count
 
@@ -65,7 +61,7 @@ reutersData %>%
 
     ## Warning: Removed 53 rows containing non-finite values (stat_ydensity).
 
-![](HeadlineAnalysis_files/figure-markdown_github/characterCountPlot-1.svg)
+![](HeadlineAnalysis_files/figure-gfm/characterCountPlot-1.svg)<!-- -->
 
 ### Word length
 
@@ -78,7 +74,7 @@ reutersData %>%
 
     ## Warning: Removed 53 rows containing non-finite values (stat_ydensity).
 
-![](HeadlineAnalysis_files/figure-markdown_github/wordLengthPlot-1.svg)
+![](HeadlineAnalysis_files/figure-gfm/wordLengthPlot-1.svg)<!-- -->
 
 ### Time distribution
 
@@ -95,7 +91,7 @@ reutersData %>%
 
     ## `geom_smooth()` using method = 'gam'
 
-![](HeadlineAnalysis_files/figure-markdown_github/perDayTrendPlot-1.svg)
+![](HeadlineAnalysis_files/figure-gfm/perDayTrendPlot-1.svg)<!-- -->
 
 #### Month of the year
 
@@ -108,7 +104,7 @@ reutersData %>%
   geom_bar()
 ```
 
-![](HeadlineAnalysis_files/figure-markdown_github/monthPlot-1.svg)
+![](HeadlineAnalysis_files/figure-gfm/monthPlot-1.svg)<!-- -->
 
 #### Week of the year
 
@@ -119,7 +115,7 @@ reutersData %>%
   scale_x_continuous( breaks=c(1,(1:5)*10,53) )
 ```
 
-![](HeadlineAnalysis_files/figure-markdown_github/weekPlot-1.svg)
+![](HeadlineAnalysis_files/figure-gfm/weekPlot-1.svg)<!-- -->
 
 #### Hour of the day
 
@@ -129,7 +125,7 @@ reutersData %>%
   geom_histogram( bins = 24)
 ```
 
-![](HeadlineAnalysis_files/figure-markdown_github/hourPlot-1.svg)
+![](HeadlineAnalysis_files/figure-gfm/hourPlot-1.svg)<!-- -->
 
 #### Minute of the hour
 
@@ -139,4 +135,58 @@ reutersData %>%
   geom_histogram( bins = 60)
 ```
 
-![](HeadlineAnalysis_files/figure-markdown_github/minutePlot-1.svg)
+![](HeadlineAnalysis_files/figure-gfm/minutePlot-1.svg)<!-- -->
+
+``` r
+reutersData %>% 
+  count( h=hour(publish_time), m=minute(publish_time) ) %>% 
+  arrange(-n) %>% 
+  top_n(100, n) %>% 
+  mutate(roundedTime = case_when(
+    m==0 ~ "hour",
+    m==30 ~ "half-hour",
+    (m%%15)==0 ~ "quarter",
+    (m%%5)==0 ~ "five-min",
+    TRUE ~ "none")
+  ) %>% 
+  mutate( hourOfDay = h + m/60 ) %>% 
+  ggplot( aes(x=hourOfDay,y=n, color=roundedTime)) +
+  geom_point()
+```
+
+![](HeadlineAnalysis_files/figure-gfm/unnamed-chunk-2-1.svg)<!-- -->
+
+### Countries
+
+``` r
+getCountries <- function(x){
+  # look for countries in the text
+  # Only the first country found in the text will be returned
+  retCntry <- character(length(x))
+  hitpos <- rep(Inf,length(x))
+  # for each country
+  for(i in 1:nrow(codelist)){
+    cntry_regexpr <- regexpr(codelist$country.name.en.regex[i], 
+                      x, ignore.case = T,perl=T)
+    # which lines of texts has a hit
+    idxHits <- na.omit(which(cntry_regexpr != -1))
+    # Only keep hits if that are before a prior hit
+    idxHits <- idxHits[cntry_regexpr[idxHits] < hitpos[idxHits]]
+    # Store the country and position of the hits
+    retCntry[idxHits] <- rep(codelist$iso3c[i],length(idxHits))
+    hitpos[idxHits] <- cntry_regexpr[idxHits]
+  }
+  return(retCntry)
+}
+
+mcGetCountries <- function(x,cores=3,blockSize=1000){
+  nBlocks <- length(x)/blockSize
+  parallel::mclapply(1:nBlocks, mc.cores = cores, function(iBlock){
+    i <- ((iBlock-1)*blockSize+1):min(iBlock*blockSize,length(x))
+    getCountries(x[i])
+  }) %>% 
+    unlist
+}
+
+countries <- mcGetCountries(reutersData$headline_text, cores=4,blockSize = 10000) 
+```

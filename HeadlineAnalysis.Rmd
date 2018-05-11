@@ -13,6 +13,7 @@ knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(tidytext)
 library(lubridate)
+library(countrycode)
 ```
 
 ```{r loadData}
@@ -136,5 +137,60 @@ reutersData %>%
 reutersData %>% 
   ggplot( aes( x = minute(publish_time)) ) +
   geom_histogram( bins = 60)
+```
+
+```{r}
+
+reutersData %>% 
+  count( h=hour(publish_time), m=minute(publish_time) ) %>% 
+  arrange(-n) %>% 
+  top_n(100, n) %>% 
+  mutate(roundedTime = case_when(
+    m==0 ~ "hour",
+    m==30 ~ "half-hour",
+    (m%%15)==0 ~ "quarter",
+    (m%%5)==0 ~ "five-min",
+    TRUE ~ "none")
+  ) %>% 
+  mutate( hourOfDay = h + m/60 ) %>% 
+  ggplot( aes(x=hourOfDay,y=n, color=roundedTime)) +
+  geom_point()
+
+```
+
+### Countries
+
+```{r countCountries, cache=T, eval=F}
+getCountries <- function(x){
+  # look for countries in the text
+  # Only the first country found in the text will be returned
+  retCntry <- character(length(x))
+  hitpos <- rep(Inf,length(x))
+  # for each country
+  for(i in 1:nrow(codelist)){
+    cntry_regexpr <- regexpr(codelist$country.name.en.regex[i], 
+                      x, ignore.case = T,perl=T)
+    # which lines of texts has a hit
+    idxHits <- na.omit(which(cntry_regexpr != -1))
+    # Only keep hits if that are before a prior hit
+    idxHits <- idxHits[cntry_regexpr[idxHits] < hitpos[idxHits]]
+    # Store the country and position of the hits
+    retCntry[idxHits] <- rep(codelist$iso3c[i],length(idxHits))
+    hitpos[idxHits] <- cntry_regexpr[idxHits]
+  }
+  return(retCntry)
+}
+
+# split up the work and run in parallel using mclapply 
+mcGetCountries <- function(x,cores=3,blockSize=1000){
+  nBlocks <- length(x)/blockSize
+  parallel::mclapply(1:nBlocks, mc.cores = cores, function(iBlock){
+    i <- ((iBlock-1)*blockSize+1):min(iBlock*blockSize,length(x))
+    getCountries(x[i])
+  }) %>% 
+    unlist
+}
+
+countries <- mcGetCountries(reutersData$headline_text, cores=4,blockSize = 10000) 
 ```
 
