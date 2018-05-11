@@ -18,6 +18,8 @@ the data of 2017 but the same can be extended to other years.
 ``` r
 library(tidyverse)
 library(tidytext)
+library(sentimentr)
+library(magrittr)
 library(lubridate)
 ```
 
@@ -90,7 +92,10 @@ newswire <- feather::read_feather("data/newswire_counts.feather")
 ```
 
 ``` r
-newswire <- dta %>%
+if (file.exists("data/newswire_counts.feather")) {
+  feather::read_feather("data/newswire_counts.feather")
+} else {
+  newswire <- dta %>%
   mutate(
     word              = map_int(strsplit(headline_text, split = " "), length),
     character         = nchar(gsub(" ", "", headline_text)),
@@ -101,7 +106,8 @@ newswire <- dta %>%
     lower             = nchar(gsub("[^[:lower:]+]", "", headline_text)),
     ul_ratio          = upper / lower
   )
-feather::write_feather(with_counts, "data/newswire_counts.feather")
+  feather::write_feather(with_counts, "data/newswire_counts.feather")
+}
 ```
 
 # Exploratory Analysis
@@ -121,14 +127,16 @@ In this section, we will explore the dataset and the features
 ## Word count distribution
 
 ``` r
+my_scale <- function(x) paste0(round(x/1000), "K")
 dta <- newswire
 dta %>% 
   ggplot(aes(word)) +
   geom_histogram() +
-  facet_wrap(~ Year, ncol = 4)
+  facet_wrap(~ Year, ncol = 4) +
+  scale_y_continuous(labels = my_scale)
 ```
 
-![](Analysis_files/figure-gfm/unnamed-chunk-6-1.svg)<!-- -->
+<img src="Analysis_files/figure-gfm/unnamed-chunk-6-1.svg" width="100%" />
 
 ## Character Count Distribution
 
@@ -136,10 +144,11 @@ dta %>%
 dta %>% 
   ggplot(aes(character)) +
   geom_histogram() +
-  facet_wrap(~ Year, ncol = 4)
+  facet_wrap(~ Year, ncol = 4) +
+  scale_y_continuous(labels = my_scale)
 ```
 
-![](Analysis_files/figure-gfm/unnamed-chunk-7-1.svg)<!-- -->
+<img src="Analysis_files/figure-gfm/unnamed-chunk-7-1.svg" width="100%" />
 
 ## Word Density distribution
 
@@ -147,10 +156,11 @@ dta %>%
 dta %>% 
   ggplot(aes(word_density)) +
   geom_histogram() +
-  facet_wrap(~ Year, ncol = 4)
+  facet_wrap(~ Year, ncol = 4) +
+  scale_y_continuous(labels = my_scale)
 ```
 
-![](Analysis_files/figure-gfm/unnamed-chunk-8-1.svg)<!-- -->
+<img src="Analysis_files/figure-gfm/unnamed-chunk-8-1.svg" width="100%" />
 
 ## Punctuation count distribution
 
@@ -158,10 +168,11 @@ dta %>%
 dta %>% 
   ggplot(aes(punctuation)) +
   geom_histogram(bins = 18) +
-  facet_wrap(~ Year, ncol = 4)
+  facet_wrap(~ Year, ncol = 4) +
+  scale_y_continuous(labels = my_scale)
 ```
 
-![](Analysis_files/figure-gfm/unnamed-chunk-9-1.svg)<!-- -->
+<img src="Analysis_files/figure-gfm/unnamed-chunk-9-1.svg" width="100%" />
 
 ## Distribution of headlines in different months and month-date
 
@@ -173,6 +184,7 @@ p1 <- dta %>%
   ggplot(aes(Month, Month_Count)) +
   geom_bar(stat = "identity") +
   scale_x_continuous(breaks = 1:12) +
+  scale_y_continuous(labels = my_scale) +
   facet_grid(Year ~ .)
 p2 <- dta %>% 
   group_by(Year, Day) %>% 
@@ -180,11 +192,12 @@ p2 <- dta %>%
   mutate(Day = as.integer(Day)) %>% 
   ggplot(aes(Day, Day_Count)) +
   geom_bar(stat = "identity") +
+  scale_y_continuous(labels = my_scale) +
   facet_grid(Year ~ .)
 gridExtra::grid.arrange(p1, p2, ncol = 2)
 ```
 
-![](Analysis_files/figure-gfm/unnamed-chunk-10-1.svg)<!-- -->
+<img src="Analysis_files/figure-gfm/unnamed-chunk-10-1.svg" width="100%" />
 
 ## Distribution of headlines during Hours and Minutes
 
@@ -196,6 +209,7 @@ p1 <- dta %>%
   ggplot(aes(Hour, Hour_Count)) +
   geom_bar(stat = "identity") +
   scale_x_continuous(breaks = seq(0, 24, 2)) +
+  scale_y_continuous(labels = my_scale) +
   facet_grid(Year ~ .)
 p2 <- dta %>% 
   group_by(Year, Minutes) %>% 
@@ -203,8 +217,36 @@ p2 <- dta %>%
   mutate(Minutes = as.integer(Minutes)) %>% 
   ggplot(aes(Minutes, Minutes_Count)) +
   geom_bar(stat = "identity") +
+  scale_y_continuous(labels = my_scale) +
   facet_grid(Year ~ .)
 gridExtra::grid.arrange(p1, p2, ncol = 2)
 ```
 
-![](Analysis_files/figure-gfm/unnamed-chunk-11-1.svg)<!-- -->
+<img src="Analysis_files/figure-gfm/unnamed-chunk-11-1.svg" width="100%" />
+
+## Sentiments Analysis
+
+``` r
+dta1 <- dta %>% 
+  select(Year, Month, Day, headline_text) %>% 
+  mutate(WeekDay = wday(as_date(paste(Year, Month, Day)), label = TRUE))
+plt_dta1 <- dta1 %>%
+  group_by(Year) %>% 
+  sample_n(10000) %>%
+  ungroup() %>% 
+  get_sentences() %$% 
+  sentiment_by(headline_text, list(Year, Month, Day))
+```
+
+``` r
+plt_dta1 %>% 
+  mutate(`Publish Date` = as_date(paste(Year, Month, Day))) %>% 
+  ggplot(aes(`Publish Date`, ave_sentiment)) +
+  geom_line() +
+  geom_hline(yintercept = 0, color = "blue") +
+  facet_wrap(~Year, scales = "free_x") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  scale_x_date(date_breaks = '1 month', date_labels = "%b")
+```
+
+<img src="Analysis_files/figure-gfm/unnamed-chunk-13-1.svg" width="100%" />
