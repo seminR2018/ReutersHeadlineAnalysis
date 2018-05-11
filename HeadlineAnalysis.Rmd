@@ -1,0 +1,20 @@
+---
+title: "Untitled"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(tidytext)
+```
+
+```{r loadData}
+reutersData <- 
+  dir("data", full.names = T) %>% 
+  map_df( read_csv,col_types = cols())
+```
+
+
