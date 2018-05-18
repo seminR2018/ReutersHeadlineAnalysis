@@ -35,7 +35,7 @@ reutersDataFull <- reutersData
 
 reutersData <- 
   reutersDataFull %>% 
-  sample_n(10000)
+  sample_n(100000)
 ```
 
 
@@ -158,9 +158,9 @@ reutersData %>%
 
 ```
 
-### Countries
+## Countries
 
-```{r countCountries, cache=T, eval=F}
+```{r countCountries, cache=T}
 getCountries <- function(x){
   # look for countries in the text
   # Only the first country found in the text will be returned
@@ -183,13 +183,14 @@ getCountries <- function(x){
 
 # split up the work and run in parallel using mclapply 
 mcGetCountries <- function(x,cores=3,blockSize=1000){
-  nBlocks <- length(x)/blockSize
+  nBlocks <- ceiling(length(x)/blockSize)
   parallel::mclapply(1:nBlocks, mc.cores = cores, function(iBlock){
     i <- ((iBlock-1)*blockSize+1):min(iBlock*blockSize,length(x))
     getCountries(x[i])
   }) %>% 
     unlist
 }
+
 
 countries <- mcGetCountries(reutersData$headline_text, cores=4,blockSize = 10000) 
 ```
