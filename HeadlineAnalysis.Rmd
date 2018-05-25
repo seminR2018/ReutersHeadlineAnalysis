@@ -41,6 +41,7 @@ reutersData <-
 
 ## Feature engineering
 
+### Counts
 
 * Word Count - Total number of words in the headline
 * Character Count - Total number of characters in the headline excluding spaces
@@ -60,7 +61,81 @@ reutersData <-
   mutate( punctuation_count = nchar(gsub("[^[:punct:]]","",headline_text)) )
 ```
 
+### Countries
+
+Get the first country mentioned in each headline. Using the countrycode which contains country names, regex expressions and country codes.
+
+```{r countCountries, cache=T}
+getCountries <- function(x){
+  # look for countries in the text
+  # Only the first country found in the text will be returned
+  retCntry <- character(length(x))
+  hitpos <- rep(Inf,length(x))
+  # for each country
+  for(i in 1:nrow(codelist)){
+    cntry_regexpr <- regexpr(codelist$country.name.en.regex[i], 
+                      x, ignore.case = T,perl=T)
+    # which lines of texts has a hit
+    idxHits <- na.omit(which(cntry_regexpr != -1))
+    # Only keep hits if that are before a prior hit
+    idxHits <- idxHits[cntry_regexpr[idxHits] < hitpos[idxHits]]
+    # Store the country and position of the hits
+    retCntry[idxHits] <- rep(codelist$iso3c[i],length(idxHits))
+    hitpos[idxHits] <- cntry_regexpr[idxHits]
+  }
+  return(retCntry)
+}
+
+# split up the work and run in parallel using mclapply 
+blockApply <- function(x, FUN, cores=3,blockSize=1000, ...){
+  nBlocks <- ceiling(length(x)/blockSize)
+  parallel::mclapply(1:nBlocks, mc.cores = cores, function(iBlock){
+    i <- ((iBlock-1)*blockSize+1):min(iBlock*blockSize,length(x))
+    FUN(x[i], ...)
+  }) %>% 
+    unlist
+}
+
+reutersData <-
+  reutersData %>% 
+  mutate( country = blockApply(reutersData$headline_text, getCountries, cores=4,blockSize = 10000) )
+
+```
+
+### Distaters
+
+Look for specific words related to disters to classify each headline.
+
+```{r getDisasters}
+
+getCategory <- function(x, categories){
+  # look for categories in the text
+  # Only the first category found in the text will be returned
+  tibble( idx = seq_along(x), text = x) %>% 
+    unnest_tokens( word, text ) %>% 
+    filter( word %in% categories) %>%
+    distinct( idx, .keep_all = T ) %>% 
+    right_join(tibble( idx = seq_along(x)), by="idx") %>% 
+    with( word )
+}
+
+
+disasterWords <- c('hurricane', 'tornado', 'blizzerd', 'fire', 'earthquake', 'flood', 'cyclone', 'avalanche', 'drought', 'storm', 'lightning', 'tsunami')
+
+reutersData <-
+  reutersData %>% 
+  mutate( disaster = getCategory(headline_text, disasterWords))
+
+```
+
+
+
+## Word usage
+
+Bag-of-words: look for specific words and look for co-occurence with these
+
 ## Exploratory analysis
+
 
 ### Word count
 
@@ -158,40 +233,4 @@ reutersData %>%
 
 ```
 
-## Countries
-
-```{r countCountries, cache=T}
-getCountries <- function(x){
-  # look for countries in the text
-  # Only the first country found in the text will be returned
-  retCntry <- character(length(x))
-  hitpos <- rep(Inf,length(x))
-  # for each country
-  for(i in 1:nrow(codelist)){
-    cntry_regexpr <- regexpr(codelist$country.name.en.regex[i], 
-                      x, ignore.case = T,perl=T)
-    # which lines of texts has a hit
-    idxHits <- na.omit(which(cntry_regexpr != -1))
-    # Only keep hits if that are before a prior hit
-    idxHits <- idxHits[cntry_regexpr[idxHits] < hitpos[idxHits]]
-    # Store the country and position of the hits
-    retCntry[idxHits] <- rep(codelist$iso3c[i],length(idxHits))
-    hitpos[idxHits] <- cntry_regexpr[idxHits]
-  }
-  return(retCntry)
-}
-
-# split up the work and run in parallel using mclapply 
-mcGetCountries <- function(x,cores=3,blockSize=1000){
-  nBlocks <- ceiling(length(x)/blockSize)
-  parallel::mclapply(1:nBlocks, mc.cores = cores, function(iBlock){
-    i <- ((iBlock-1)*blockSize+1):min(iBlock*blockSize,length(x))
-    getCountries(x[i])
-  }) %>% 
-    unlist
-}
-
-
-countries <- mcGetCountries(reutersData$headline_text, cores=4,blockSize = 10000) 
-```
 
