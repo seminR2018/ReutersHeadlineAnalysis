@@ -7,8 +7,13 @@ editor_options:
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+options(java.parameters = "- Xmx2048m")
 library(tidyverse)
 library(tidytext)
+library(SentimentAnalysis)
+library(NLP)
+library(openNLP)
+
 ```
 
 ```{r loadData}
@@ -18,5 +23,67 @@ reutersData <-
 ```
 
 ```{r word count}
+RowCount <- function(txt, new_col, token_name){
+  tbl <- data.frame(text=txt, stringsAsFactors = FALSE)
+  N <- tbl %>% unnest_tokens(new_col, text, token=token_name) %>%
+    summarise(n=n())
+  return(N$n)
+}
+
+week_converter = c("Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday")
+
+reutersData %>%
+  slice(1:5) %>%
+  rowwise() %>%
+  mutate(word_count = RowCount(headline_text, word_count, "words"),
+    character_count = RowCount(headline_text, character_count, "characters"),
+    word_density = word_count/(character_count+1),
+    punctuation_count = nchar(gsub("[^[:punct:]]", "", headline_text)),
+    upper = nchar(gsub("[^[:upper:]+]", "", headline_text)),
+    lower = nchar(gsub("[^[:lower:]+]", "", headline_text)),
+    upper_lower_ratio = upper / lower,
+    polarity = analyzeSentiment(headline_text)$SentimentQDAP,
+    weekday=week_converter[lubridate::wday(lubridate::as_datetime(paste(as.character(publish_time), "00")))]) %>%
+  separate(publish_time,
+               into = c("Year", "Month", "Day", "Hour", "Minutes"),
+               sep = c(4, 6, 8, 10))
 
 ```
+
+
+```{r POS count}
+
+POSCount <- function(txt, POS_name){
+  # "NN.*"=nouns, "V.*"=verbs, "JJ.*"=adjectives, "RB.*"=adverbs
+  acq <- data.frame(text=txt, stringsAsFactors = FALSE)
+  #print(acq)
+  acq=as.String(txt)
+  
+  sent_token_annotator <- Maxent_Sent_Token_Annotator()
+  word_token_annotator <- Maxent_Word_Token_Annotator()
+  
+  a2 <- annotate(acq, list(sent_token_annotator, word_token_annotator))
+  pos_tag_annotator <- Maxent_POS_Tag_Annotator()
+  
+  a3 <- annotate(acq, pos_tag_annotator, a2)
+  a4 <- as.data.frame(a3) %>%
+    filter(type=="word") %>%
+    mutate(features=unlist(features))
+
+  N <- sum(grepl(POS_name, a4$features)+0)
+  
+  return(N)
+}
+
+reutersData %>%
+  slice(1:5) %>%
+  rowwise() %>%
+  mutate(noun_count = POSCount(headline_text, "NN.*"),
+         verb_count = POSCount(headline_text, "V.*"),
+         adj_count = POSCount(headline_text, "JJ.*"),
+         adv_count = POSCount(headline_text, "RB.*"))
+
+```
+
+
+
