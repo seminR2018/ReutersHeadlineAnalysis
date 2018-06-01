@@ -1,8 +1,6 @@
-library(tidyverse)
-library(tidytext)
-library(sentimentr)
-library(magrittr)
-library(lubridate)
+require(tidyverse)
+require(tidytext)
+require(sentimentr)
 
 get_sentiments <- function(text_column) {
   out <- get_sentences(text_column) %>% 
