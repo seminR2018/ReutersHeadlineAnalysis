@@ -13,7 +13,9 @@ knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(tidytext)
 library(lubridate)
-library(countrycode)
+
+source("getCountry.R")
+source("getCategory.R")
 ```
 
 ```{r loadData}
@@ -66,25 +68,6 @@ reutersData <-
 Get the first country mentioned in each headline. Using the countrycode which contains country names, regex expressions and country codes.
 
 ```{r countCountries, cache=T}
-getCountries <- function(x){
-  # look for countries in the text
-  # Only the first country found in the text will be returned
-  retCntry <- character(length(x))
-  hitpos <- rep(Inf,length(x))
-  # for each country
-  for(i in 1:nrow(codelist)){
-    cntry_regexpr <- regexpr(codelist$country.name.en.regex[i], 
-                      x, ignore.case = T,perl=T)
-    # which lines of texts has a hit
-    idxHits <- na.omit(which(cntry_regexpr != -1))
-    # Only keep hits if that are before a prior hit
-    idxHits <- idxHits[cntry_regexpr[idxHits] < hitpos[idxHits]]
-    # Store the country and position of the hits
-    retCntry[idxHits] <- rep(codelist$iso3c[i],length(idxHits))
-    hitpos[idxHits] <- cntry_regexpr[idxHits]
-  }
-  return(retCntry)
-}
 
 # split up the work and run in parallel using mclapply 
 blockApply <- function(x, FUN, cores=3,blockSize=1000, ...){
@@ -107,17 +90,6 @@ reutersData <-
 Look for specific words related to disters to classify each headline.
 
 ```{r getDisasters}
-
-getCategory <- function(x, categories){
-  # look for categories in the text
-  # Only the first category found in the text will be returned
-  tibble( idx = seq_along(x), text = x) %>% 
-    unnest_tokens( word, text ) %>% 
-    filter( word %in% categories) %>%
-    distinct( idx, .keep_all = T ) %>% 
-    right_join(tibble( idx = seq_along(x)), by="idx") %>% 
-    with( word )
-}
 
 
 disasterWords <- c('hurricane', 'tornado', 'blizzerd', 'fire', 'earthquake', 'flood', 'cyclone', 'avalanche', 'drought', 'storm', 'lightning', 'tsunami')
