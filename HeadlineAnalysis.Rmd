@@ -14,6 +14,7 @@ library(SentimentAnalysis)
 library(NLP)
 library(openNLP)
 
+
 ```
 
 ```{r loadData}
@@ -76,7 +77,7 @@ POSCount <- function(txt, POS_name){
 }
 
 reutersData %>%
-  slice(1:5) %>%
+  slice(1:50) %>%
   rowwise() %>%
   mutate(noun_count = POSCount(headline_text, "NN.*"),
          verb_count = POSCount(headline_text, "V.*"),
@@ -84,6 +85,147 @@ reutersData %>%
          adv_count = POSCount(headline_text, "RB.*"))
 
 ```
+
+
+```{r unify}
+
+reuter.df <- reutersData %>%
+  sample_n(size=50) %>%
+  rowwise() %>%
+  mutate(word_count = RowCount(headline_text, word_count, "words"),
+    character_count = RowCount(headline_text, character_count, "characters"),
+    word_density = word_count/(character_count+1),
+    punctuation_count = nchar(gsub("[^[:punct:]]", "", headline_text)),
+    upper = nchar(gsub("[^[:upper:]+]", "", headline_text)),
+    lower = nchar(gsub("[^[:lower:]+]", "", headline_text)),
+    upper_lower_ratio = upper / lower,
+    polarity = analyzeSentiment(headline_text)$SentimentQDAP,
+    weekday=week_converter[lubridate::wday(lubridate::as_datetime(paste(as.character(publish_time), "00")))]) %>%
+  separate(publish_time,
+               into = c("Year", "Month", "Day", "Hour", "Minutes"),
+               sep = c(4, 6, 8, 10)) #%>%
+  rowwise() %>%
+    mutate(noun_count = POSCount(headline_text, "NN.*"),
+           verb_count = POSCount(headline_text, "V.*"),
+           adj_count = POSCount(headline_text, "JJ.*"),
+           adv_count = POSCount(headline_text, "RB.*"))
+
+
+```
+
+```{r Word count distribution}
+
+reuter.df %>%
+  ggplot(aes(x=word_count)) +
+  geom_histogram() +
+  theme_classic()
+
+```
+
+
+```{r Char count distribution}
+
+reuter.df %>%
+  ggplot(aes(x=character_count)) +
+  geom_histogram() +
+  theme_classic()
+
+```
+
+```{r Word density distribution}
+
+reuter.df %>%
+  ggplot(aes(x=word_density)) +
+  geom_histogram() +
+  theme_classic()
+
+```
+
+```{r Punctuation count distribution}
+
+reuter.df %>%
+  ggplot(aes(x=punctuation_count)) +
+  geom_histogram() +
+  theme_classic()
+
+```
+
+```{r Headers/month distribution}
+
+reuter.df %>%
+  group_by(Month) %>%
+  summarise(n=n()) %>%
+  ggplot(aes(x=Month, y=as.integer(n))) +
+  geom_bar(stat="identity") +
+  theme_classic()
+
+```
+
+```{r Headers/day distribution}
+
+reuter.df %>%
+  group_by(Day) %>%
+  summarise(n=n()) %>%
+  ggplot(aes(x=Day, y=as.integer(n))) +
+  geom_bar(stat="identity") +
+  theme_classic()
+
+```
+
+```{r Headers/hour distribution}
+
+reuter.df %>%
+  group_by(Hour) %>%
+  summarise(n=n()) %>%
+  ggplot(aes(x=Hour, y=as.integer(n))) +
+  geom_bar(stat="identity") +
+  theme_classic()
+
+```
+
+```{r Headers/minute distribution}
+
+reuter.df %>%
+  group_by(Minutes) %>%
+  summarise(n=n()) %>%
+  ggplot(aes(x=Minutes, y=as.integer(n))) +
+  geom_bar(stat="identity") +
+  theme_classic()
+
+```
+
+```{r Headers/minute distribution}
+
+reuter.df %>%
+  group_by(Year, Month) %>%
+  summarise(avr_sentiment=mean(polarity)) %>%
+  ggplot(aes(y=avr_sentiment, x=paste0(Year, Month))) +
+  geom_bar(stat="identity") +
+  theme_classic()
+
+```
+
+```{r Top and bottom sentiment headers}
+
+reuter.df %>%
+  filter(polarity>sort(reuter.df$polarity, decreasing=T)[10])
+
+reuter.df %>%
+  filter(polarity<sort(reuter.df$polarity, decreasing=F)[10])
+
+```
+
+```{r Top and bottom sentiment headers}
+
+reuter.df %>%
+  filter(polarity>sort(reuter.df$polarity, decreasing=T)[10])
+
+reuter.df %>%
+  filter(polarity<sort(reuter.df$polarity, decreasing=F)[10])
+
+```
+
+
 
 
 
