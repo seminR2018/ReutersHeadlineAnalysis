@@ -1,21 +1,4 @@
----
-title: "News - Text Analysis (Topic - Natural Disasters)"
-author: "Raju Rimal"
-date: "20/04/2018"
-output: 
-  github_document:
-    toc: true
-    dev: svg
-  html_document:
-    theme: cosmo
-    toc: false
-    toc_float: true
-    code_folding: show
-editor_options: 
-  chunk_output_type: console
----
-
-```{r setup, include=FALSE}
+## ----setup, include=FALSE------------------------------------------------
 knitr::opts_chunk$set(
   echo = TRUE, 
   warning = FALSE, 
@@ -24,33 +7,18 @@ knitr::opts_chunk$set(
   cache = TRUE,
   out.width = '100%'
   )
-```
 
-This kernal provides a walkthrough of text analysis of Reuter's Headlines published in 2017. It includes exploration, feature engineering, and visualization of headlines data as well as a detailed text-analysis of disaster related headlines of 2017.
-
-# Dataset Preparation
-
-Load the required libraries and data. In this notebook, I am only using the data of 2017 but the same can be extended to other years.
-
-**Load Packages:**
-
-```{r}
+## ------------------------------------------------------------------------
 library(tidyverse)
 library(tidytext)
 library(sentimentr)
 library(magrittr)
 library(lubridate)
-```
 
-__Some custom functions:__
-```{r}
+## ------------------------------------------------------------------------
 k_scale <- function(x) paste0(round(x/1000), "K")
-```
 
-
-**Lets look at the dataset:**
-
-```{r, eval=!file.exists("data/newswire_counts.feather"), cache = TRUE}
+## ---- eval=!file.exists("data/newswire_counts.feather"), cache = TRUE----
 if (file.exists("data/newswire.feather")) {
   dta <- feather::read_feather("data/newswire.feather")
 } else {
@@ -69,40 +37,11 @@ if (file.exists("data/newswire.feather")) {
     feather::write_feather(dta, "_data/newswire.feather")
   }
 }
-```
 
-# Feature Engineering
-
-The available data contains only two columns - headline_text and publish date. In this section we will create some some additional features using these features. Following list explains different ideas for creating new features.
-
-## Statistical Count Features from headline text
-
-1) __Word Count__ - Total number of words in the headline
-1) __Character Count__ - Total number of characters in the headline excluding spaces
-1) __Word Density__ - Average length of the words used in the headline
-1) __Punctuation Count__ - Total number of punctuations used in the headline
-1) __Upper-Case to Lower-Case Words ratio__ - ratio of upper case words used and lower case words used in the text
-
-## Headline Text Features
-
-1) __Sentiment__: Polarity - sentiment value of the headline computed using textblob package
-1) __Part of Speech__: Nouns to Verbs Ratio - ratio of nouns and verbs used in the text
-
-## Features from headline's publish time
-
-1) __Month__ - name of the month in which headline was publised
-1) __Date__ - month date in which headline was published
-1) __Hour__ - hour value in which headline was published
-1) __Minute__ - minute value in whcih headline was published
-1) __Weekday__ - Weekday name when the headline was published
-
-# Generate Statistical Count Features
-
-```{r, cache=TRUE, eval = file.exists('data/newswire_counts.feather')}
+## ---- cache=TRUE, eval = file.exists('data/newswire_counts.feather')-----
 newswire <- feather::read_feather("data/newswire_counts.feather")
-```
 
-```{r, cache=TRUE, eval = !file.exists('data/newswire_counts.feather')}
+## ---- cache=TRUE, eval = !file.exists('data/newswire_counts.feather')----
 if (file.exists("data/newswire_counts.feather")) {
   feather::read_feather("data/newswire_counts.feather")
 } else {
@@ -119,25 +58,8 @@ if (file.exists("data/newswire_counts.feather")) {
   )
   feather::write_feather(with_counts, "data/newswire_counts.feather")
 }
-```
 
-# Exploratory Analysis
-
-In this section, we will explore the dataset and the features
-
-- Headline's Word Count Distribution over the year
-- Headline's Character Count Distribution over the year
-- Headline's Average Word Density Distribution over the year
-- Headline's Punctuation Count distribution over the year
-- Publish Date Parameters distribution - Month, Month-Date
-- Publish Date Parameters distribution - Week-Day, Hour
-- WeekDay vs WeekEnd distributions 3.8. Sentiment over Time
-- Top Positive vs Top Negative Words Used in the headlines
-- Countries Visualization
-
-## Word count distribution
-
-```{r}
+## ------------------------------------------------------------------------
 my_scale <- function(x) paste0(round(x/1000), "K")
 dta <- newswire
 dta %>% 
@@ -145,40 +67,29 @@ dta %>%
   geom_histogram() +
   facet_wrap(~ Year, ncol = 4) +
   scale_y_continuous(labels = my_scale)
-```
 
-## Character Count Distribution
-
-```{r}
+## ------------------------------------------------------------------------
 dta %>% 
   ggplot(aes(character)) +
   geom_histogram() +
   facet_wrap(~ Year, ncol = 4) +
   scale_y_continuous(labels = my_scale)
-```
 
-## Word Density distribution
-```{r}
+## ------------------------------------------------------------------------
 dta %>% 
   ggplot(aes(word_density)) +
   geom_histogram() +
   facet_wrap(~ Year, ncol = 4) +
   scale_y_continuous(labels = my_scale)
-```
 
-## Punctuation count distribution
-
-```{r}
+## ------------------------------------------------------------------------
 dta %>% 
   ggplot(aes(punctuation)) +
   geom_histogram(bins = 18) +
   facet_wrap(~ Year, ncol = 4) +
   scale_y_continuous(labels = my_scale)
-```
 
-## Distribution of headlines in different months and month-date
-
-```{r, fig.asp=1}
+## ---- fig.asp=1----------------------------------------------------------
 p1 <- dta %>% 
   group_by(Year, Month) %>% 
   summarize(Month_Count = n()) %>% 
@@ -197,11 +108,8 @@ p2 <- dta %>%
   scale_y_continuous(labels = my_scale) +
   facet_grid(Year ~ .)
 gridExtra::grid.arrange(p1, p2, ncol = 2)
-```
 
-## Distribution of headlines during Hours and Minutes
-
-```{r, fig.asp=1}
+## ---- fig.asp=1----------------------------------------------------------
 p1 <- dta %>% 
   group_by(Year, Hour) %>% 
   summarize(Hour_Count = n()) %>% 
@@ -220,28 +128,25 @@ p2 <- dta %>%
   scale_y_continuous(labels = my_scale) +
   facet_grid(Year ~ .)
 gridExtra::grid.arrange(p1, p2, ncol = 2)
-```
 
-## Sentiments Analysis
-```{r}
+## ------------------------------------------------------------------------
 dta1 <- dta %>% 
   select(Year, Month, Day, Hour, Minutes, headline_text) %>% 
   mutate(WeekDay = wday(as_date(paste(Year, Month, Day)), label = TRUE))
 dta_sub <- dta1 %>%
   group_by(Year) %>% 
-  sample_n(10000, replace = FALSE) %>%
+  sample_n(100, replace = FALSE) %>%
   ungroup()
 sentiments_data <- dta_sub %>% 
-  get_sentences() %$% 
-  sentiment_by(headline_text, list(Year, Month, Day, Hour, Minutes))
+  get_sentences() %$%
+  sentiment_by(headline_text, list(1:n()))
   
 sentiments_with_headline <- sentiments_data %>% 
   left_join(dta_sub, by = c("Year", "Month", "Day", "Hour", "Minutes")) %>% 
   as_tibble() %>% 
   arrange(desc(ave_sentiment))
-```
 
-```{r}
+## ------------------------------------------------------------------------
 plt_dta1 %>% 
   mutate(`Publish Date` = as_date(paste(Year, Month, Day))) %>% 
   ggplot(aes(`Publish Date`, ave_sentiment)) +
@@ -250,5 +155,4 @@ plt_dta1 %>%
   facet_wrap(~Year, scales = "free_x") +
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
   scale_x_date(date_breaks = '1 month', date_labels = "%b")
-```
 
